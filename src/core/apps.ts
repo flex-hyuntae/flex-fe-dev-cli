@@ -11,22 +11,30 @@ export interface AppInfo {
   submodule: string; // 부모 레포 안 submodule 본체 절대경로 (worktree anchor)
   appSubdir: string; // web-applications 하위 디렉토리명
   workspace: string; // turbo --filter 에 쓰는 워크스페이스명
+  repo: string; // submodule 디렉토리명 (그룹핑 기준)
+  repoLabel: string; // 화면 표시용 짧은 레포명 (flex-frontend- 접두사 제거)
 }
 
-const toAppInfo = (submodule: string, appSubdir: string): AppInfo | null => {
+const toRepoLabel = (repo: string): string => {
+  const stripped = repo.replace(/^flex-frontend-/, "");
+  return stripped.length > 0 ? stripped : repo;
+};
+
+const toAppInfo = (submodulePath: string, appSubdir: string): AppInfo | null => {
+  const repo = path.basename(submodulePath);
+  const base = {
+    submodule: submodulePath,
+    appSubdir,
+    repo,
+    repoLabel: toRepoLabel(repo),
+  };
   if (appSubdir === "host") {
-    return {
-      name: "host",
-      submodule,
-      appSubdir,
-      workspace: "@flex-apps/host",
-    };
+    return { ...base, name: "host", workspace: "@flex-apps/host" };
   }
   if (appSubdir.startsWith("remotes-")) {
     return {
+      ...base,
       name: appSubdir.slice("remotes-".length),
-      submodule,
-      appSubdir,
       workspace: `@flex-apps/${appSubdir}`,
     };
   }
@@ -62,7 +70,8 @@ export const listApps = (): AppInfo[] => {
     }
   }
 
+  // 레포(그룹) 기준 정렬 후, 그룹 내에서 앱 이름 정렬.
   return apps.sort((a, b) => {
-    return a.name.localeCompare(b.name);
+    return a.repoLabel.localeCompare(b.repoLabel) || a.name.localeCompare(b.name);
   });
 };

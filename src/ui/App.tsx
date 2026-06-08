@@ -5,7 +5,7 @@ import TextInput from "ink-text-input";
 import { listApps, type AppInfo } from "../core/apps";
 import { openEditor } from "../core/actions";
 import { resolveWorktree } from "../core/worktree";
-import { FilterSelect } from "./FilterSelect";
+import { FilterSelect, type FilterSelectItem } from "./FilterSelect";
 
 type Step = "app" | "branch" | "action" | "opened" | "error";
 
@@ -14,24 +14,39 @@ interface AppProps {
   onRun: (target: string, app: AppInfo) => void;
 }
 
-interface Item<T> {
-  label: string;
-  value: T;
-  key?: string;
-}
-
-const Header = (props: { app: AppInfo | null; branch: string }) => {
+// 상단 제목 + 진행 경로(앱 → 브랜치) 표시.
+const Header = (props: { app: AppInfo | null; branch: string; step: Step }) => {
+  const crumb = (label: string, value: string, active: boolean) => {
+    return (
+      <Text>
+        <Text dimColor>{label} </Text>
+        <Text color={value ? "cyan" : "gray"} bold={active}>
+          {value || "—"}
+        </Text>
+      </Text>
+    );
+  };
   return (
     <Box flexDirection="column" marginBottom={1}>
-      <Text color="cyan" bold>
-        flex-fe-dev
-      </Text>
-      {props.app ? (
-        <Text dimColor>
-          app: {props.app.name} ({props.app.workspace})
-          {props.branch ? `  ·  branch: ${props.branch}` : ""}
+      <Text>
+        <Text color="cyan" bold>
+          ⚡ flex-fe-dev
         </Text>
-      ) : null}
+        <Text dimColor>  flex frontend dev 런처</Text>
+      </Text>
+      <Box>
+        {crumb("app", props.app?.name ?? "", props.step === "app")}
+        <Text dimColor>{"   ›   "}</Text>
+        {crumb("branch", props.branch, props.step === "branch")}
+      </Box>
+    </Box>
+  );
+};
+
+const FooterHint = (props: { children: string }) => {
+  return (
+    <Box marginTop={1}>
+      <Text dimColor>{props.children}</Text>
     </Box>
   );
 };
@@ -74,15 +89,17 @@ export const App = (props: AppProps) => {
     }
   });
 
-  const appItems: Item<AppInfo>[] = apps.map((app) => {
+  const appItems: FilterSelectItem<AppInfo>[] = apps.map((app) => {
     return {
-      label: `${app.name}${app.name === "host" ? "  (MF host)" : ""}`,
+      label: `${app.name}${app.name === "host" ? "  ⟨MF host⟩" : ""}`,
       value: app,
       key: app.workspace,
+      group: app.repoLabel,
+      hint: app.workspace,
     };
   });
 
-  const handleAppSelect = (item: Item<AppInfo>) => {
+  const handleAppSelect = (item: FilterSelectItem<AppInfo>) => {
     setSelectedApp(item.value);
     setStep("branch");
   };
@@ -96,12 +113,12 @@ export const App = (props: AppProps) => {
     setStep("action");
   };
 
-  const actionItems: Item<"run" | "open">[] = [
-    { label: "run   — dev 서버 실행 (foreground)", value: "run", key: "run" },
-    { label: "open  — VS Code 로 열기", value: "open", key: "open" },
+  const actionItems = [
+    { label: "▶  run   — dev 서버 실행 (Ctrl+C 로 끄면 메뉴 복귀)", value: "run", key: "run" },
+    { label: "↗  open  — VS Code 로 열기", value: "open", key: "open" },
   ];
 
-  const handleActionSelect = (item: Item<"run" | "open">) => {
+  const handleActionSelect = (item: { value: string }) => {
     if (!selectedApp) {
       return;
     }
@@ -122,65 +139,76 @@ export const App = (props: AppProps) => {
   };
 
   return (
-    <Box flexDirection="column">
-      <Header app={selectedApp} branch={branch} />
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      borderColor="cyan"
+      paddingX={1}
+    >
+      <Header app={selectedApp} branch={branch} step={step} />
 
       {step === "app" ? (
         <Box flexDirection="column">
-          <Text>앱을 고르세요 (타이핑 검색 · ↑↓ 이동 · Enter 선택 · Esc 종료):</Text>
+          <Text bold>어떤 앱을 띄울까요?</Text>
           <FilterSelect
             items={appItems}
-            limit={12}
-            placeholder="앱 이름 검색 (예: brain, host)"
+            limit={14}
+            placeholder="앱·레포 이름으로 검색 (예: brain, payroll, host)"
             onSelect={handleAppSelect}
           />
+          <FooterHint>타이핑 검색 · ↑↓ 이동 · Enter 선택 · Esc 종료</FooterHint>
         </Box>
       ) : null}
 
       {step === "branch" ? (
         <Box flexDirection="column">
-          <Text>
-            브랜치 이름 (Enter 확정, Esc 뒤로). default branch 면 submodule 본체,
-            없으면 worktree 자동 생성:
-          </Text>
-          <Box>
+          <Text bold>브랜치 이름</Text>
+          <Box marginTop={1}>
             <Text color="green">{"❯ "}</Text>
             <TextInput
               value={branchDraft}
               onChange={setBranchDraft}
               onSubmit={handleBranchSubmit}
-              placeholder="feature/..."
+              placeholder="feature/... (default branch 면 본체, 없으면 worktree 자동 생성)"
             />
           </Box>
+          <FooterHint>Enter 확정 · Esc 뒤로</FooterHint>
         </Box>
       ) : null}
 
       {step === "action" ? (
         <Box flexDirection="column">
-          <Text>무엇을 할까요? (Esc 뒤로):</Text>
-          <SelectInput items={actionItems} onSelect={handleActionSelect} />
+          <Text bold>무엇을 할까요?</Text>
+          <Box marginTop={1} flexDirection="column">
+            <SelectInput items={actionItems} onSelect={handleActionSelect} />
+          </Box>
+          <FooterHint>Enter 선택 · Esc 뒤로</FooterHint>
         </Box>
       ) : null}
 
       {step === "opened" ? (
         <Box flexDirection="column">
           <Text color="green">{message}</Text>
-          <Text dimColor>Enter/Esc 로 처음으로, q 로 종료</Text>
-          <SelectInput
-            items={[{ label: "처음으로", value: "back", key: "back" }]}
-            onSelect={resetToStart}
-          />
+          <Box marginTop={1} flexDirection="column">
+            <SelectInput
+              items={[{ label: "↺  처음으로", value: "back", key: "back" }]}
+              onSelect={resetToStart}
+            />
+          </Box>
+          <FooterHint>Enter/Esc 로 처음으로 · Ctrl+C 종료</FooterHint>
         </Box>
       ) : null}
 
       {step === "error" ? (
         <Box flexDirection="column">
-          <Text color="red">❌ {error}</Text>
-          <Text dimColor>Enter/Esc 로 처음으로, q 로 종료</Text>
-          <SelectInput
-            items={[{ label: "처음으로", value: "back", key: "back" }]}
-            onSelect={resetToStart}
-          />
+          <Text color="red">✖ {error}</Text>
+          <Box marginTop={1} flexDirection="column">
+            <SelectInput
+              items={[{ label: "↺  처음으로", value: "back", key: "back" }]}
+              onSelect={resetToStart}
+            />
+          </Box>
+          <FooterHint>Enter/Esc 로 처음으로 · Ctrl+C 종료</FooterHint>
         </Box>
       ) : null}
     </Box>

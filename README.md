@@ -14,7 +14,7 @@ flex 프론트 레포는 부모 레포(`flex-frontend-repositories`) 아래 subm
 flex-fe-dev
 ```
 
-- **앱 선택**: 부모 레포 안 모든 submodule 의 `web-applications/{remotes-*, host}` 를 스캔해 목록으로 보여준다. 타이핑하면 즉시 필터링된다. `host` 는 MF host 앱(`@flex-apps/host`)으로 다룬다.
+- **앱 선택**: 부모 레포 안 모든 submodule 의 `web-applications/{remotes-*, host}` 를 스캔해 **레포(submodule) 단위로 그룹핑**해 보여준다. 타이핑하면 앱·레포 이름으로 즉시 필터링된다. `host` 는 MF host 앱(`@flex-apps/host`)으로 다룬다.
 - **브랜치 입력**: default branch 면 submodule 본체를 그대로 쓰고, 그 외엔 체크아웃된 worktree 를 찾거나(없으면 origin 에서 자동 생성).
 - **run**: `yarn install` → `.env.local` 보장 → `yarn turbo run dev --filter <workspace>` 를 foreground 로 실행. dev 를 `Ctrl+C` 로 끄면 프로그램이 종료되지 않고 **메뉴로 복귀**해 바로 다른 브랜치/앱을 다시 띄울 수 있다.
 - **open**: VS Code 로 해당 디렉토리를 연다 (TUI 는 그대로 유지).
