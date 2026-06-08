@@ -58,11 +58,11 @@ export const App = (props: AppProps) => {
     return listApps();
   }, []);
 
-  // 박스 전체가 터미널 높이를 넘으면 Ink 가 이전 프레임을 못 지워 보더가 쌓인다.
+  // 출력 전체가 터미널 높이를 넘으면 Ink 가 이전 프레임을 못 지워 잔상이 쌓인다.
   // 리스트 줄 수를 터미널 행 수에 맞춰 제한해 항상 한 화면에 들어오게 한다.
-  // (chrome: 보더2 + 헤더3 + 제목1 + 검색1 + 여백1 + 카운트1 + 힌트2 ≈ 11, 안전여백 포함 14)
+  // (chrome: 헤더3 + 제목1 + 검색1 + 여백1 + 카운트1 + 힌트2 ≈ 9, 안전여백 포함 12)
   const terminalRows = stdout?.rows ?? 24;
-  const listLimit = Math.max(5, terminalRows - 14);
+  const listLimit = Math.max(5, terminalRows - 12);
 
   const [step, setStep] = useState<Step>("app");
   const [selectedApp, setSelectedApp] = useState<AppInfo | null>(null);
@@ -146,12 +146,7 @@ export const App = (props: AppProps) => {
   };
 
   return (
-    <Box
-      flexDirection="column"
-      borderStyle="round"
-      borderColor="cyan"
-      paddingX={1}
-    >
+    <Box flexDirection="column">
       <Header app={selectedApp} branch={branch} step={step} />
 
       {step === "app" ? (
