@@ -121,9 +121,8 @@ export const FilterSelect = <T,>(props: FilterSelectProps<T>) => {
     if (row.kind === "header") {
       return (
         <Text key={`h:${row.group}:${position}`}>
-          <Text color="yellow" bold>
-            {row.group || "(기타)"}
-          </Text>
+          {/* 그룹 헤더는 색 대신 굵기로 구분 — 터미널 기본 글자색이라 라이트/다크 배경 모두 대비 보장 */}
+          <Text bold>{row.group || "(기타)"}</Text>
           <Text dimColor> · {row.count}</Text>
         </Text>
       );
