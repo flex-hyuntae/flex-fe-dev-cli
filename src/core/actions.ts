@@ -28,28 +28,45 @@ export const openEditor = (target: string): void => {
   child.unref();
 };
 
-// dev 서버를 foreground 로 실행한다. 터미널을 넘겨받으므로 호출 전에 Ink 를 unmount 해야 한다.
+// dev 서버를 foreground 로 실행하고, 서버가 종료될 때까지 기다린다 (Promise).
+// 호출 전에 Ink 를 unmount 해야 터미널이 dev 서버로 넘어간다.
 // yarn install → .env.local 보장 → yarn turbo run dev --filter <workspace> 순서.
-export const runDev = (target: string, app: AppInfo): void => {
-  console.log(`\n→ yarn install (${target})`);
-  const install = spawn("yarn", ["install"], { cwd: target, stdio: "inherit" });
+//
+// NOTE: 부모(node)에 no-op SIGINT 리스너를 달아 둔다. Ctrl+C 는 포그라운드 프로세스
+//       그룹 전체에 전달되는데, 이 리스너가 없으면 부모도 함께 죽어 TUI 가 사라진다.
+//       리스너 덕에 부모는 살고 자식(dev)만 종료 → resolve 후 호출 측이 메뉴로 복귀한다.
+export const runDev = (target: string, app: AppInfo): Promise<void> => {
+  return new Promise((resolve) => {
+    const ignoreSigint = () => {};
+    process.on("SIGINT", ignoreSigint);
+    const cleanup = () => {
+      process.removeListener("SIGINT", ignoreSigint);
+    };
 
-  install.on("exit", (installCode) => {
-    if (installCode !== 0) {
-      console.error(`\n❌ yarn install 실패 (exit ${installCode})`);
-      process.exit(installCode ?? 1);
-    }
+    console.log(`\n→ yarn install (${target})`);
+    const install = spawn("yarn", ["install"], { cwd: target, stdio: "inherit" });
 
-    console.log(`\n${ensureEnvLocal(target, app)}`);
-    console.log(`\n→ yarn turbo run dev --filter=${app.workspace}\n`);
+    install.on("exit", (installCode) => {
+      if (installCode !== 0) {
+        console.error(`\n❌ yarn install 실패 (exit ${installCode}) — 메뉴로 복귀`);
+        cleanup();
+        resolve();
+        return;
+      }
 
-    const dev = spawn(
-      "yarn",
-      ["turbo", "run", "dev", "--filter", app.workspace],
-      { cwd: target, stdio: "inherit" },
-    );
-    dev.on("exit", (devCode) => {
-      process.exit(devCode ?? 0);
+      console.log(`\n${ensureEnvLocal(target, app)}`);
+      console.log(`\n→ yarn turbo run dev --filter=${app.workspace}`);
+      console.log("  (Ctrl+C 로 dev 종료 → 메뉴로 복귀)\n");
+
+      const dev = spawn(
+        "yarn",
+        ["turbo", "run", "dev", "--filter", app.workspace],
+        { cwd: target, stdio: "inherit" },
+      );
+      dev.on("exit", () => {
+        cleanup();
+        resolve();
+      });
     });
   });
 };
