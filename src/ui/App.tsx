@@ -5,6 +5,7 @@ import TextInput from "ink-text-input";
 import { listApps, type AppInfo } from "../core/apps";
 import { openEditor } from "../core/actions";
 import { resolveWorktree } from "../core/worktree";
+import { FilterSelect } from "./FilterSelect";
 
 type Step = "app" | "branch" | "action" | "opened" | "error";
 
@@ -57,20 +58,19 @@ export const App = (props: AppProps) => {
     setStep("app");
   };
 
-  // Esc: 한 단계 뒤로 / q: 종료 (텍스트 입력 중이 아닐 때만 q 처리)
+  // Esc: 한 단계 뒤로 (app 단계에선 종료). 종료는 Esc(app) 또는 Ctrl+C.
+  // app 단계는 검색 타이핑을 받으므로 q 같은 문자 단축키를 두지 않는다.
   useInput((input, key) => {
     if (key.escape) {
-      if (step === "branch") {
+      if (step === "app") {
+        exit();
+      } else if (step === "branch") {
         setStep("app");
       } else if (step === "action") {
         setStep("branch");
       } else if (step === "error" || step === "opened") {
         resetToStart();
       }
-      return;
-    }
-    if (input === "q" && step !== "branch") {
-      exit();
     }
   });
 
@@ -127,10 +127,11 @@ export const App = (props: AppProps) => {
 
       {step === "app" ? (
         <Box flexDirection="column">
-          <Text>앱을 고르세요 (↑↓ 이동, Enter 선택, q 종료):</Text>
-          <SelectInput
+          <Text>앱을 고르세요 (타이핑 검색 · ↑↓ 이동 · Enter 선택 · Esc 종료):</Text>
+          <FilterSelect
             items={appItems}
             limit={12}
+            placeholder="앱 이름 검색 (예: brain, host)"
             onSelect={handleAppSelect}
           />
         </Box>
