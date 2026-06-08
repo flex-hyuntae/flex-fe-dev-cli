@@ -113,7 +113,52 @@ export const FilterSelect = <T,>(props: FilterSelectProps<T>) => {
     }
   });
 
-  const rows = windowRows(buildRows(filtered), safeIndex, limit);
+  const view = windowRows(buildRows(filtered), safeIndex, limit);
+
+  // NOTE: 매 이동마다 리스트 높이가 바뀌면 박스가 출렁이고(터미널보다 길면 잔상이 쌓인다),
+  //       항상 정확히 limit 줄을 렌더해 높이를 고정한다. 모자라는 줄은 공백으로 채운다.
+  const renderRow = (row: Row<T>, position: number) => {
+    if (row.kind === "header") {
+      return (
+        <Text key={`h:${row.group}:${position}`}>
+          <Text color="yellow" bold>
+            {row.group || "(기타)"}
+          </Text>
+          <Text dimColor> · {row.count}</Text>
+        </Text>
+      );
+    }
+    const isActive = row.itemIndex === safeIndex;
+    return (
+      <Text
+        key={row.item.key ?? `i:${position}`}
+        color={isActive ? "cyan" : undefined}
+        bold={isActive}
+      >
+        {isActive ? "  ❯ " : "    "}
+        {row.item.label}
+        {isActive && row.item.hint ? (
+          <Text dimColor>  {row.item.hint}</Text>
+        ) : null}
+      </Text>
+    );
+  };
+
+  const lines: React.ReactNode[] = [];
+  if (filtered.length === 0) {
+    lines.push(
+      <Text key="empty" dimColor>
+        {"  일치하는 항목 없음"}
+      </Text>,
+    );
+  } else {
+    view.forEach((row, position) => {
+      lines.push(renderRow(row, position));
+    });
+  }
+  while (lines.length < limit) {
+    lines.push(<Text key={`pad:${lines.length}`}> </Text>);
+  }
 
   return (
     <Box flexDirection="column">
@@ -128,36 +173,7 @@ export const FilterSelect = <T,>(props: FilterSelectProps<T>) => {
       </Box>
 
       <Box flexDirection="column" marginTop={1}>
-        {filtered.length === 0 ? (
-          <Text dimColor>  일치하는 항목 없음</Text>
-        ) : (
-          rows.map((row, position) => {
-            if (row.kind === "header") {
-              return (
-                <Text key={`h:${row.group}:${position}`}>
-                  <Text color="yellow" bold>
-                    {row.group || "(기타)"}
-                  </Text>
-                  <Text dimColor> · {row.count}</Text>
-                </Text>
-              );
-            }
-            const isActive = row.itemIndex === safeIndex;
-            return (
-              <Text
-                key={row.item.key ?? row.item.label}
-                color={isActive ? "cyan" : undefined}
-                bold={isActive}
-              >
-                {isActive ? "  ❯ " : "    "}
-                {row.item.label}
-                {isActive && row.item.hint ? (
-                  <Text dimColor>  {row.item.hint}</Text>
-                ) : null}
-              </Text>
-            );
-          })
-        )}
+        {lines}
       </Box>
 
       <Text dimColor>
