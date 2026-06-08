@@ -3,4 +3,6 @@
 # tsx 런타임으로 src/cli.tsx 를 직접 실행한다 (빌드 단계 없음).
 set -euo pipefail
 DIR="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
-exec node --import tsx "$DIR/src/cli.tsx" "$@"
+# NOTE: `node --import tsx` 는 'tsx' 를 실행 CWD 기준으로 해석해 다른 디렉토리에서 호출하면
+#       ERR_MODULE_NOT_FOUND 가 난다. 레포 로컬 tsx 바이너리를 절대경로로 직접 실행한다.
+exec "$DIR/node_modules/.bin/tsx" "$DIR/src/cli.tsx" "$@"
