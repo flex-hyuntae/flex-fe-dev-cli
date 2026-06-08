@@ -121,8 +121,8 @@ export const App = (props: AppProps) => {
   };
 
   const actionItems = [
-    { label: "▶  run   — dev 서버 실행 (Ctrl+C 로 끄면 메뉴 복귀)", value: "run", key: "run" },
-    { label: "↗  open  — VS Code 로 열기", value: "open", key: "open" },
+    { label: "▶  run   — VS Code 열고 dev 서버 실행 (Ctrl+C 로 끄면 메뉴 복귀)", value: "run", key: "run" },
+    { label: "↗  open  — VS Code 로만 열기 (dev 없이)", value: "open", key: "open" },
   ];
 
   const handleActionSelect = (item: { value: string }) => {
@@ -132,7 +132,9 @@ export const App = (props: AppProps) => {
     try {
       const resolution = resolveWorktree(selectedApp, branch);
       if (item.value === "run") {
-        // Ink 를 벗어나 dev 서버에 터미널을 넘긴다.
+        // run 은 VS Code 를 먼저 열고(분리 실행 — 터미널 점유 안 함), 그다음
+        // Ink 를 벗어나 dev 서버에 터미널을 넘긴다. 에디터는 install/dev 동안 떠 있다.
+        openEditor(resolution.target);
         props.onRun(resolution.target, selectedApp);
         return;
       }
