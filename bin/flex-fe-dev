@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# flex-fe-dev — Ink TUI 런처 진입점.
+# tsx 런타임으로 src/cli.tsx 를 직접 실행한다 (빌드 단계 없음).
+set -euo pipefail
+DIR="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+exec node --import tsx "$DIR/src/cli.tsx" "$@"
