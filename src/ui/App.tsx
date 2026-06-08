@@ -70,6 +70,8 @@ export const App = (props: AppProps) => {
   const [branchDraft, setBranchDraft] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  // run 시 VS Code 도 함께 열지 여부. action 단계에서 Space 로 토글, 기본 켜짐.
+  const [openEditorOnRun, setOpenEditorOnRun] = useState(true);
 
   const resetToStart = () => {
     setSelectedApp(null);
@@ -82,6 +84,7 @@ export const App = (props: AppProps) => {
 
   // Esc: 한 단계 뒤로 (app 단계에선 종료). 종료는 Esc(app) 또는 Ctrl+C.
   // app 단계는 검색 타이핑을 받으므로 q 같은 문자 단축키를 두지 않는다.
+  // action 단계에선 Space 로 'VS Code 열기' 체크박스를 토글한다.
   useInput((input, key) => {
     if (key.escape) {
       if (step === "app") {
@@ -93,6 +96,10 @@ export const App = (props: AppProps) => {
       } else if (step === "error" || step === "opened") {
         resetToStart();
       }
+      return;
+    }
+    if (step === "action" && input === " ") {
+      setOpenEditorOnRun((prev) => !prev);
     }
   });
 
@@ -121,7 +128,7 @@ export const App = (props: AppProps) => {
   };
 
   const actionItems = [
-    { label: "▶  run   — VS Code 열고 dev 서버 실행 (Ctrl+C 로 끄면 메뉴 복귀)", value: "run", key: "run" },
+    { label: "▶  run   — dev 서버 실행 (Ctrl+C 로 끄면 메뉴 복귀)", value: "run", key: "run" },
     { label: "↗  open  — VS Code 로만 열기 (dev 없이)", value: "open", key: "open" },
   ];
 
@@ -132,9 +139,11 @@ export const App = (props: AppProps) => {
     try {
       const resolution = resolveWorktree(selectedApp, branch);
       if (item.value === "run") {
-        // run 은 VS Code 를 먼저 열고(분리 실행 — 터미널 점유 안 함), 그다음
-        // Ink 를 벗어나 dev 서버에 터미널을 넘긴다. 에디터는 install/dev 동안 떠 있다.
-        openEditor(resolution.target);
+        // 체크박스가 켜져 있으면 VS Code 를 먼저 열고(분리 실행 — 터미널 점유 안 함),
+        // 그다음 Ink 를 벗어나 dev 서버에 터미널을 넘긴다. 에디터는 install/dev 동안 떠 있다.
+        if (openEditorOnRun) {
+          openEditor(resolution.target);
+        }
         props.onRun(resolution.target, selectedApp);
         return;
       }
@@ -186,7 +195,12 @@ export const App = (props: AppProps) => {
           <Box marginTop={1} flexDirection="column">
             <SelectInput items={actionItems} onSelect={handleActionSelect} />
           </Box>
-          <FooterHint>Enter 선택 · Esc 뒤로</FooterHint>
+          <Box marginTop={1}>
+            <Text color={openEditorOnRun ? "green" : "gray"}>
+              {openEditorOnRun ? "[✓]" : "[ ]"} run 시 VS Code 도 함께 열기
+            </Text>
+          </Box>
+          <FooterHint>Enter 선택 · Space VS Code 열기 토글 · Esc 뒤로</FooterHint>
         </Box>
       ) : null}
 

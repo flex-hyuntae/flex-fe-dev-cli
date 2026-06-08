@@ -41,10 +41,10 @@ flex-fe-dev
 
 ![액션](assets/action.png)
 
-- **run**: 먼저 **VS Code 로 해당 디렉토리를 열고**(분리 실행), 이어서 `yarn install` → `.env.local` 보장 → `yarn turbo run dev --filter <workspace>` 를 foreground 로 실행. dev 를 `Ctrl+C` 로 끄면 프로그램이 종료되지 않고 **메뉴로 복귀**해 바로 다른 브랜치/앱을 다시 띄울 수 있다.
+- **run**: 기본적으로 **VS Code 로 해당 디렉토리를 먼저 열고**(분리 실행) — `Space` 로 이 옵션을 토글할 수 있다(기본 켜짐) — 이어서 `yarn install` → `.env.local` 보장 → `yarn turbo run dev --filter <workspace>` 를 foreground 로 실행. dev 를 `Ctrl+C` 로 끄면 프로그램이 종료되지 않고 **메뉴로 복귀**해 바로 다른 브랜치/앱을 다시 띄울 수 있다.
 - **open**: dev 없이 VS Code 로만 해당 디렉토리를 연다 (TUI 는 그대로 유지).
 
-단축키: 앱 선택에서 **타이핑 검색** · `↑↓` 이동 · `Enter` 선택 · `Esc` 뒤로(앱 단계에선 종료) · `Ctrl+C` 종료.
+단축키: 앱 선택에서 **타이핑 검색** · `↑↓` 이동 · `Enter` 선택 · `Space` (액션 단계에서 VS Code 열기 토글) · `Esc` 뒤로(앱 단계에선 종료) · `Ctrl+C` 종료.
 
 ## 동작 규칙
 
