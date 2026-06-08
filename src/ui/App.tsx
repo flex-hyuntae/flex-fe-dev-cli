@@ -12,6 +12,8 @@ type Step = "app" | "branch" | "action" | "opened" | "error";
 interface AppProps {
   // run 선택 시 호출 — 호출 측이 Ink 를 unmount 하고 dev 서버를 foreground 로 띄운다.
   onRun: (target: string, app: AppInfo) => void;
+  // 직전에 run 한 앱. 있으면 앱 선택을 건너뛰고 브랜치 입력부터 시작한다(앱 고정 + 브랜치만 교체).
+  initialApp?: AppInfo;
 }
 
 // 상단 제목 + 진행 경로(앱 → 브랜치) 표시.
@@ -64,8 +66,9 @@ export const App = (props: AppProps) => {
   const terminalRows = stdout?.rows ?? 24;
   const listLimit = Math.max(5, terminalRows - 12);
 
-  const [step, setStep] = useState<Step>("app");
-  const [selectedApp, setSelectedApp] = useState<AppInfo | null>(null);
+  // initialApp 이 있으면 그 앱으로 고정한 채 브랜치 단계부터 시작. 앱을 바꾸려면 브랜치에서 Esc.
+  const [step, setStep] = useState<Step>(props.initialApp ? "branch" : "app");
+  const [selectedApp, setSelectedApp] = useState<AppInfo | null>(props.initialApp ?? null);
   const [branch, setBranch] = useState("");
   const [branchDraft, setBranchDraft] = useState("");
   const [message, setMessage] = useState("");
@@ -128,7 +131,7 @@ export const App = (props: AppProps) => {
   };
 
   const actionItems = [
-    { label: "▶  run   — dev 서버 실행 (Ctrl+C 로 끄면 메뉴 복귀)", value: "run", key: "run" },
+    { label: "▶  run   — dev 서버 실행 (Ctrl+C 로 끄면 브랜치 단계로 복귀, 앱 유지)", value: "run", key: "run" },
     { label: "↗  open  — VS Code 로만 열기 (dev 없이)", value: "open", key: "open" },
   ];
 
@@ -185,7 +188,7 @@ export const App = (props: AppProps) => {
               placeholder="feature/... (default branch 면 본체, 없으면 worktree 자동 생성)"
             />
           </Box>
-          <FooterHint>Enter 확정 · Esc 뒤로</FooterHint>
+          <FooterHint>Enter 확정 · Esc 앱 다시 고르기</FooterHint>
         </Box>
       ) : null}
 
