@@ -20,8 +20,11 @@ export const ensureEnvLocal = (target: string, app: AppInfo): string => {
 };
 
 // VS Code 로 연다 (비동기, 분리 실행 — TUI 루프 유지).
+// `code` CLI 대신 `open -a` 로 띄운다: code 는 LaunchServices 를 거치지 않고
+// 번들 바이너리를 직접 exec 해서, dock 에 핀 고정된 앱과 매칭되지 않는 별도 임시
+// 아이콘이 뜬다. open 은 LaunchServices 경유라 핀 고정된 번들을 그대로 재사용한다.
 export const openEditor = (target: string): void => {
-  const child = spawn("code", [target], {
+  const child = spawn("open", ["-a", "Visual Studio Code", target], {
     stdio: "ignore",
     detached: true,
   });
