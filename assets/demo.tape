@@ -14,14 +14,17 @@ Set Padding 20
 # 메뉴 진입
 Type "flex-fe-dev"
 Enter
-Sleep 2s
+Sleep 2.5s
 Screenshot app-select.png
+Sleep 800ms
 
 # 검색 — payroll 로 필터
 Type "payroll"
 Sleep 1500ms
 Screenshot search.png
+Sleep 500ms
 Backspace 7
+Sleep 500ms
 
 # 앱 선택 → 브랜치(main=base) → 액션 메뉴
 Type "home"
@@ -31,7 +34,6 @@ Sleep 800ms
 Type "main"
 Sleep 500ms
 Enter
-Sleep 1200ms
+Sleep 1500ms
 Screenshot action.png
-
 Sleep 800ms
