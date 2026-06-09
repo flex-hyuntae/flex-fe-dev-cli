@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { PARENT_REPO } from "./config";
+import { getParentRepo } from "./config";
 
 // 앱 하나의 디렉토리/워크스페이스 레이아웃.
 //   - 도메인 remote : web-applications/remotes-<name>, 워크스페이스 @flex-apps/remotes-<name>
@@ -44,15 +44,16 @@ const toAppInfo = (submodulePath: string, appSubdir: string): AppInfo | null => 
 // 부모 레포 안 모든 submodule 의 web-applications/{remotes-*, host} 를 스캔한다.
 // init 안 된 submodule 은 web-applications 가 없어 자연히 제외된다 (lazy init 전제).
 export const listApps = (): AppInfo[] => {
+  const parentRepo = getParentRepo();
   const submodules = fs
-    .readdirSync(PARENT_REPO, { withFileTypes: true })
+    .readdirSync(parentRepo, { withFileTypes: true })
     .filter(
       (entry) => entry.isDirectory() && entry.name.startsWith("flex-frontend"),
     );
 
   const apps: AppInfo[] = [];
   for (const submodule of submodules) {
-    const submodulePath = path.join(PARENT_REPO, submodule.name);
+    const submodulePath = path.join(parentRepo, submodule.name);
     const webApplications = path.join(submodulePath, "web-applications");
     if (!fs.existsSync(webApplications)) {
       continue;

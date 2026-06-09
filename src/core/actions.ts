@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import type { AppInfo } from "./apps";
+import { setHostRemoteEnabled } from "./hostEnv";
 
 // .env.local 을 보장한다 (없으면 .env.example 복사). 진행 메시지를 반환.
 export const ensureEnvLocal = (target: string, app: AppInfo): string => {
@@ -58,6 +59,13 @@ export const runDev = (target: string, app: AppInfo): Promise<void> => {
       }
 
       console.log(`\n${ensureEnvLocal(target, app)}`);
+
+      // remote 면 host(:3000) .env.local 에 프록시 URL 을 활성화한다(host 와 함께 띄우는 경우).
+      const remoteOn = setHostRemoteEnabled(target, app, true);
+      if (remoteOn) {
+        console.log(`\n${remoteOn}`);
+      }
+
       console.log(`\n→ yarn turbo run dev --filter=${app.workspace}`);
       console.log("  (Ctrl+C 로 dev 종료 → 메뉴로 복귀)\n");
 
@@ -67,6 +75,11 @@ export const runDev = (target: string, app: AppInfo): Promise<void> => {
         { cwd: target, stdio: "inherit" },
       );
       dev.on("exit", () => {
+        // remote 를 끄면 host .env.local 의 프록시 라인을 다시 주석 처리한다.
+        const remoteOff = setHostRemoteEnabled(target, app, false);
+        if (remoteOff) {
+          console.log(`\n${remoteOff}`);
+        }
         cleanup();
         resolve();
       });

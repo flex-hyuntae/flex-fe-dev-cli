@@ -20,7 +20,7 @@ npm install
 `install.sh` 는 두 가지를 한다:
 
 1. `~/.local/bin` 에 `flex-fe-dev` 를 symlink (PATH 에 없으면 안내).
-2. **`FLEX_ROOT` 를 한 번 묻는다** — flex 레포 루트(그 아래 `flex-frontend-repositories` 가 있는 디렉토리). 기본값은 `~/Projects/flex`, 폴더 구조가 다르면 그 자리에서 입력하면 된다. 값은 `~/.config/flex-fe-dev/config.json` 에 저장되며 셸 rc 는 건드리지 않는다. 나중에 바꾸려면 `install.sh` 를 다시 실행한다.
+2. **`FLEX_ROOT` 를 한 번 묻는다** — flex 레포 루트(그 아래 `flex-frontend-repositories` 가 있는 디렉토리). 기본값은 `~/Projects/flex`, 폴더 구조가 다르면 그 자리에서 입력하면 된다. 값은 `~/.config/flex-fe-dev/config.json` 에 저장되며 셸 rc 는 건드리지 않는다. 나중에 바꾸려면 앱 화면에서 `Tab` → 설정으로 변경(저장 즉시 재스캔)하거나, `install.sh` 재실행 / env 오버라이드를 쓴다.
 
 ## 사용법 — `flex-fe-dev` (TUI)
 
@@ -49,7 +49,9 @@ flex-fe-dev
 - **run**: 기본적으로 **VS Code 로 해당 디렉토리를 먼저 열고**(분리 실행) — `Space` 로 이 옵션을 토글할 수 있다(기본 켜짐) — 이어서 `yarn install` → `.env.local` 보장 → `yarn turbo run dev --filter <workspace>` 를 foreground 로 실행. dev 를 `Ctrl+C` 로 끄면 프로그램이 종료되지 않고 **같은 앱의 브랜치 입력 단계로 복귀**한다 → 앱을 다시 고를 필요 없이 다른 브랜치를 바로 띄울 수 있다. **앱을 바꾸려면 브랜치 단계에서 `Esc`** 로 앱 선택으로 돌아간다.
 - **open**: dev 없이 VS Code 로만 해당 디렉토리를 연다 (TUI 는 그대로 유지).
 
-단축키: 앱 선택에서 **타이핑 검색** · `↑↓` 이동 · `Enter` 선택 · `Space` (액션 단계에서 VS Code 열기 토글) · `Esc` 뒤로(앱 단계에선 종료) · `Ctrl+C` 종료.
+remote 를 run 하면 host(:3000) 의 `.env.local` 에서 그 remote 의 `MF_REMOTES_<NAME>_BASE_URL=http://localhost:<port>` 를 자동으로 활성화(주석 해제/없으면 추가)하고, dev 를 끄면 다시 주석 처리한다. `name`/`port` 는 각 remote 의 `mf.config.ts` 에서 읽는다. (host dev 서버가 이미 떠 있으면 변경 반영에 host 재시작이 필요할 수 있다.)
+
+단축키: 앱 선택에서 **타이핑 검색** · `↑↓` 이동 · `Enter` 선택 · `Tab` 설정(FLEX_ROOT) · `Space` (액션 단계에서 VS Code 열기 토글) · `Esc` 뒤로(앱 단계에선 종료) · `Ctrl+C` 종료.
 
 ## 동작 규칙
 
@@ -64,7 +66,7 @@ flex-fe-dev
 
 ## 환경변수
 
-`FLEX_ROOT` 결정 우선순위: **env `FLEX_ROOT` → `~/.config/flex-fe-dev/config.json` (설치 시 저장) → 기본값 `~/Projects/flex`**. env 는 항상 최우선이라 일시 오버라이드에 쓸 수 있다.
+`FLEX_ROOT` 결정 우선순위: **env `FLEX_ROOT` → `~/.config/flex-fe-dev/config.json` (설치 시 또는 앱 내 `Tab` 설정에서 저장) → 기본값 `~/Projects/flex`**. env 는 항상 최우선이라 일시 오버라이드에 쓸 수 있다(이때는 설정에서 저장해도 즉시 반영되지 않는다).
 
 | 변수 | 기본값 | 의미 |
 |---|---|---|
