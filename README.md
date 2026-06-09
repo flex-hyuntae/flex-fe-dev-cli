@@ -1,5 +1,7 @@
 # flex-fe-dev-cli
 
+> **[`flex-frontend-repositories`](https://github.com/flex-team/flex-frontend-repositories) 기반** — 부모 레포 아래 `flex-frontend*` submodule 들이 묶여 있고 각 submodule 에 `web-applications/{remotes-*, host}` 가 있는 모노레포 구조를 전제로 동작한다. 이 레이아웃이 아니면 앱 스캔이 비어 나온다.
+
 flex frontend dev 런처. 작업할 **앱과 브랜치를 고르면** worktree 를 해석/생성하고, dev 서버를 띄우거나(`run`) VS Code 로 연다(`open`).
 
 flex 프론트 레포는 부모 레포(`flex-frontend-repositories`) 아래 submodule 들로 묶여 있고, 작업은 각 submodule 의 worktree 에 격리한다. 이 도구는 그 흐름(앱 → 브랜치 → worktree → run/open)을 한 곳에서 처리한다.
@@ -15,7 +17,10 @@ npm install
 ./install.sh
 ```
 
-`~/.local/bin` 에 `flex-fe-dev` 를 symlink 한다. `~/.local/bin` 이 PATH 에 없으면 `install.sh` 가 안내한다.
+`install.sh` 는 두 가지를 한다:
+
+1. `~/.local/bin` 에 `flex-fe-dev` 를 symlink (PATH 에 없으면 안내).
+2. **`FLEX_ROOT` 를 한 번 묻는다** — flex 레포 루트(그 아래 `flex-frontend-repositories` 가 있는 디렉토리). 기본값은 `~/Projects/flex`, 폴더 구조가 다르면 그 자리에서 입력하면 된다. 값은 `~/.config/flex-fe-dev/config.json` 에 저장되며 셸 rc 는 건드리지 않는다. 나중에 바꾸려면 `install.sh` 를 다시 실행한다.
 
 ## 사용법 — `flex-fe-dev` (TUI)
 
@@ -59,10 +64,13 @@ flex-fe-dev
 
 ## 환경변수
 
+`FLEX_ROOT` 결정 우선순위: **env `FLEX_ROOT` → `~/.config/flex-fe-dev/config.json` (설치 시 저장) → 기본값 `~/Projects/flex`**. env 는 항상 최우선이라 일시 오버라이드에 쓸 수 있다.
+
 | 변수 | 기본값 | 의미 |
 |---|---|---|
-| `FLEX_ROOT` | `$HOME/Projects/flex` | flex 레포들의 루트 |
+| `FLEX_ROOT` | config 파일 → `$HOME/Projects/flex` | flex 레포들의 루트 |
 | `FLEX_PARENT_REPO` | `$FLEX_ROOT/flex-frontend-repositories` | submodule 들이 묶인 부모 레포 |
+| `XDG_CONFIG_HOME` | `$HOME/.config` | config 파일 위치의 베이스 |
 
 ## 구조
 
