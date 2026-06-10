@@ -46,6 +46,12 @@ flex-fe-dev
 
 `run` 하면 메뉴가 사라지지 않고 대시보드에 **패널이 추가**되며 그 앱이 백그라운드로 부팅된다(`yarn install` → `.env.local` 보장 → `yarn turbo run dev --filter <workspace>`). 여러 앱을 쌓으면 각 dev 서버 로그가 **분할 패널로 동시에** 흐르고, **focused 슬롯**(`↑↓`/`Tab` 로 이동)이 더 큰 행 비중을 차지한다. 상태는 색으로 구분된다 — `● running`(초록) / `◐ installing`(노랑) / `⏸ parked`(파랑) / `○ exited`(회색) / `✖ failed`(빨강).
 
+host 하나 띄우기 — 검색 → 선택 → 브랜치 → run → 백그라운드 부팅:
+
+![host 띄우기](assets/host.gif)
+
+여러 앱을 쌓으면 분할 패널로 동시에:
+
 ![대시보드](assets/dashboard.png)
 
 focused 슬롯에 대한 키:
@@ -60,6 +66,10 @@ focused 슬롯에 대한 키:
 ### 3. 같은 remote 여러 브랜치 — 단일-포트 스왑
 
 같은 remote 를 다른 브랜치로 또 `run` 하면, 포트가 같으므로(예: `ai` = `:3022`) **새 패널을 만들지 않고 그 슬롯의 브랜치 탭으로 추가**된다. 한 번에 **하나만 live**(실제로 포트 점유), 나머지는 `⏸ parked`(정지 — 메모리·포트 0). `←→` 로 브랜치 탭을 고르고 `Enter` 를 누르면 **현재 live 를 정지하고 선택 브랜치를 같은 포트에 올린다**(전환 시 dev 콜드 부팅 대기). host 의 `MF_REMOTES_*_BASE_URL` 은 그 포트로 고정돼 있어 **전환에 host 재시작이 필요 없다**. ([conductor 의 spotlight testing](https://www.conductor.build/docs/reference/scripts/spotlight-testing) 과 유사한, 한 포트에 브랜치를 갈아끼우는 방식.)
+
+ai 를 두 브랜치로 띄우고 `←→`·`Enter` 로 `:3022` 를 갈아끼우기:
+
+![ai 브랜치 전환](assets/swap.gif)
 
 remote 를 run 하면 host(:3000) 의 `.env.local` 에서 그 remote 의 `MF_REMOTES_<NAME>_BASE_URL=http://localhost:<port>` 를 자동으로 활성화(주석 해제/없으면 추가)하고, `x` 로 끄면 다시 주석 처리한다. `name`/`port` 는 각 remote 의 `mf.config.ts` 에서 읽는다. **host 는 이 값을 부팅 시점에 읽으므로**, host 가 이미 떠 있는데 새 remote 를 추가하면 대시보드에 "host 재시작 필요" 힌트가 뜬다 → host 패널 focus 후 `r` 로 반영한다.
 
@@ -103,14 +113,17 @@ src/core/apps.ts         submodule 스캔 → AppInfo 목록 (레포 그룹/host
 src/core/worktree.ts     worktree 해석/자동 생성
 src/core/actions.ts      .env.local 보장 / VS Code · 브라우저 열기
 src/core/hostEnv.ts      host .env.local 의 remote 프록시 라인 토글
-assets/demo.tape         스크린샷·GIF 캡처용 vhs tape
+assets/*.tape            vhs tape (demo=전체 흐름, host=host 띄우기, swap=ai 브랜치 전환)
 ```
 
 ## 스크린샷 재생성
 
-[vhs](https://github.com/charmbracelet/vhs) 로 `assets/` 의 GIF·PNG 를 다시 만든다.
+[vhs](https://github.com/charmbracelet/vhs) 로 `assets/` 의 GIF·PNG 를 다시 만든다. 데모 모드(`FLEX_FE_DEV_DEMO=1`)라 실제 레포 없이도 재현된다.
 
 ```bash
 brew install vhs          # 의존: ttyd, ffmpeg
-cd assets && vhs demo.tape
+cd assets
+vhs demo.tape             # demo.gif + 단계별 PNG (전체 흐름)
+vhs host.tape             # host.gif  (host 띄우기)
+vhs swap.tape             # swap.gif  (같은 ai 두 브랜치 단일-포트 스왑)
 ```
