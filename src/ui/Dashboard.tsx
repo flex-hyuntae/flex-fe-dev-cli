@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import type { AppStatus, RunningApp } from "../core/processManager";
+import { groupSlots, type AppStatus, type RunningApp, type Slot } from "../core/processManager";
 
 interface DashboardProps {
   apps: RunningApp[];
@@ -16,8 +16,13 @@ const STATUS_DISPLAY: Record<
 > = {
   installing: { symbol: "◐", color: "yellow", label: "installing" },
   running: { symbol: "●", color: "green", label: "running" },
+  parked: { symbol: "⏸", color: "blue", label: "parked" },
   exited: { symbol: "○", color: "gray", label: "exited" },
   failed: { symbol: "✖", color: "red", label: "failed" },
+};
+
+const isLiveStatus = (status: AppStatus): boolean => {
+  return status === "running" || status === "installing";
 };
 
 // 로그 행 예산을 패널에 분배한다. focused 가 가중치 2, 나머지 1.
@@ -65,10 +70,10 @@ const StatusBadge = (props: { status: AppStatus }) => {
 // 실행 중 앱 한 줄 요약 + host 프록시 대상 + 재시작 필요 경고.
 const Summary = (props: { apps: RunningApp[]; hostNeedsRestart: boolean }) => {
   const host = props.apps.find((app) => app.app.appSubdir === "host");
-  const remotes = props.apps.filter((app) =>
-    app.app.appSubdir.startsWith("remotes-"),
+  const liveRemotes = props.apps.filter(
+    (app) => app.app.appSubdir.startsWith("remotes-") && isLiveStatus(app.status),
   );
-  const proxies = remotes.map((app) => app.app.name).join(", ");
+  const proxies = liveRemotes.map((app) => app.app.name).join(", ");
   return (
     <Text>
       <Text color="cyan" bold>
@@ -85,35 +90,69 @@ const Summary = (props: { apps: RunningApp[]; hostNeedsRestart: boolean }) => {
   );
 };
 
-const AppPane = (props: {
-  runningApp: RunningApp;
+// 같은 remote 의 브랜치 후보들을 가로 칩으로. live ● / parked ⏸ / 커서(focused) 강조.
+const BranchTabs = (props: { members: RunningApp[]; focusedId: string | null }) => {
+  return (
+    <Text wrap="truncate-end">
+      {"  "}
+      {props.members.map((member, index) => {
+        const display = STATUS_DISPLAY[member.status];
+        const cursor = member.id === props.focusedId;
+        return (
+          <Text key={member.id}>
+            {index > 0 ? <Text dimColor>{"  "}</Text> : null}
+            <Text color={cursor ? "cyan" : display.color} bold={cursor}>
+              {cursor ? "▸" : " "}
+              {member.branch} {display.symbol}
+            </Text>
+          </Text>
+        );
+      })}
+    </Text>
+  );
+};
+
+// 슬롯(포트) 하나 = 패널 하나. 헤더 + (멀티 브랜치면) 탭 strip + live 멤버 로그.
+const SlotPane = (props: {
+  slot: Slot;
   focused: boolean;
+  focusedId: string | null;
   logRows: number;
 }) => {
-  const { runningApp, focused, logRows } = props;
-  const lines = runningApp.log.tail(logRows);
+  const { slot, focused, focusedId, logRows } = props;
+  const multi = slot.members.length > 1;
+  // 로그는 포트를 점유한 live 멤버 기준(없으면 focused/첫 멤버).
+  const display =
+    slot.live ??
+    slot.members.find((member) => member.id === focusedId) ??
+    slot.members[0];
+  if (!display) {
+    return null;
+  }
+  const lines = display.log.tail(logRows);
   const gutter = focused ? "┃ " : "│ ";
   return (
     <Box flexDirection="column">
       <Text>
         <Text color={focused ? "cyan" : undefined} bold={focused}>
           {focused ? "❯ " : "  "}
-          {runningApp.app.name}
+          {display.app.name}
         </Text>
-        <Text dimColor>{`  ${runningApp.branch}`}</Text>
-        {runningApp.port !== null ? (
-          <Text dimColor>{`  :${runningApp.port}  `}</Text>
+        {multi ? null : <Text dimColor>{`  ${display.branch}`}</Text>}
+        {display.port !== null ? (
+          <Text dimColor>{`  :${display.port}  `}</Text>
         ) : (
           <Text dimColor>{"  "}</Text>
         )}
-        <StatusBadge status={runningApp.status} />
-        {runningApp.status === "running" && runningApp.port !== null ? (
-          <Text color="cyan">{`  localhost:${runningApp.port}`}</Text>
+        <StatusBadge status={display.status} />
+        {display.status === "running" && display.port !== null ? (
+          <Text color="cyan">{`  localhost:${display.port}`}</Text>
         ) : null}
       </Text>
+      {multi ? <BranchTabs members={slot.members} focusedId={focusedId} /> : null}
       {lines.map((line, index) => (
         <Text
-          key={`${runningApp.id}:${index}`}
+          key={`${display.id}:${index}`}
           dimColor={!focused}
           wrap="truncate-end"
         >
@@ -125,8 +164,8 @@ const AppPane = (props: {
   );
 };
 
-// 실행 중인 dev 서버들을 분할 패널로 동시에 보여준다(focused 가 더 큰 비중).
-// 입력 처리는 App 이 단독으로 맡는다 — 여긴 순수 표시 컴포넌트.
+// 실행 중인 dev 서버들을 슬롯(포트) 단위 분할 패널로 동시에 보여준다(focused 가 더 큰 비중).
+// 같은 remote 의 여러 브랜치는 한 패널 안 탭으로. 입력 처리는 App 단독.
 export const Dashboard = (props: DashboardProps) => {
   const { apps, focusedId, rows, hostNeedsRestart } = props;
 
@@ -146,32 +185,39 @@ export const Dashboard = (props: DashboardProps) => {
     );
   }
 
-  const focusedIndex = Math.max(
+  const slots = groupSlots(apps);
+  const focusedSlotIndex = Math.max(
     0,
-    apps.findIndex((app) => app.id === focusedId),
+    slots.findIndex((slot) => slot.members.some((member) => member.id === focusedId)),
   );
 
   // chrome: 요약 1 + 푸터 2 + 안전여백 1. 나머지를 (패널 제목 + 로그)에 나눈다.
+  // 멀티-브랜치 슬롯은 탭 strip 한 줄을 더 쓰므로 제목 행에 합산한다.
+  const titleRows = slots.reduce(
+    (sum, slot) => sum + (slot.members.length > 1 ? 2 : 1),
+    0,
+  );
   const available = Math.max(6, rows - 4);
-  const logBudget = Math.max(0, available - apps.length);
-  const logRowCounts = distributeLogRows(apps.length, focusedIndex, logBudget);
+  const logBudget = Math.max(0, available - titleRows);
+  const logRowCounts = distributeLogRows(slots.length, focusedSlotIndex, logBudget);
 
   return (
     <Box flexDirection="column">
       <Summary apps={apps} hostNeedsRestart={hostNeedsRestart} />
       <Box flexDirection="column" marginTop={1}>
-        {apps.map((runningApp, index) => (
-          <AppPane
-            key={runningApp.id}
-            runningApp={runningApp}
-            focused={index === focusedIndex}
+        {slots.map((slot, index) => (
+          <SlotPane
+            key={slot.key}
+            slot={slot}
+            focused={index === focusedSlotIndex}
+            focusedId={focusedId}
             logRows={logRowCounts[index] ?? 0}
           />
         ))}
       </Box>
       <Box marginTop={1}>
         <Text dimColor>
-          a 추가 · r 재시작 · x 끄기 · o 브라우저 · ↑↓/Tab 포커스 · ^C 종료(전체)
+          a 추가 · ↑↓ 슬롯 · ←→ 브랜치 · Enter 전환 · r 재시작 · x 끄기 · o 브라우저 · ^C 종료
         </Text>
       </Box>
     </Box>

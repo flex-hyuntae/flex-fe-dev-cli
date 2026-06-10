@@ -10,7 +10,7 @@ Output demo.gif
 Set Shell "zsh"
 Set FontSize 16
 Set Width 1280
-Set Height 820
+Set Height 860
 Set Theme "Catppuccin Mocha"
 Set Padding 24
 
@@ -37,7 +37,7 @@ Sleep 600ms
 Enter
 Sleep 2.4s
 
-# ── ai(remote) 추가 → 분할 로그 ──
+# ── ai(remote) main 추가 → 분할 로그(host + ai) ──
 Type "a"
 Sleep 700ms
 Type "ai"
@@ -49,17 +49,31 @@ Sleep 500ms
 Enter
 Sleep 700ms
 Enter
-Sleep 2.8s
+Sleep 2.6s
 
-# ── focus 이동(Tab) → 분할 대시보드 캡처 ──
-Tab
-Sleep 1.4s
-Screenshot dashboard.png
-Sleep 1.6s
-
-# ── x 로 focused 앱 끄기 ──
-Type "x"
+# ── 같은 ai 의 다른 브랜치 추가 → parked 탭으로 (단일-포트 스왑) ──
+Type "a"
+Sleep 600ms
+Type "ai"
+Sleep 900ms
+Enter
+Sleep 600ms
+Type "feat/login"
+Sleep 600ms
+Enter
+Sleep 600ms
+Enter
 Sleep 1.8s
+Screenshot dashboard.png
+
+# ── Enter 로 parked 브랜치를 :3022 에 전환(스왑) ──
+Sleep 1.2s
+Enter
+Sleep 2.6s
+
+# ── x 로 focused 브랜치 끄기 ──
+Type "x"
+Sleep 1.6s
 
 # ── Ctrl+C 로 전체 종료(고아 정리) ──
 Ctrl+C

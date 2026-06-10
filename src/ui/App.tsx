@@ -4,7 +4,7 @@ import SelectInput from "ink-select-input";
 import TextInput from "ink-text-input";
 import { listApps, type AppInfo } from "../core/apps";
 import { openBrowser, openEditor } from "../core/actions";
-import { makeRunId, processManager } from "../core/processManager";
+import { groupSlots, makeRunId, processManager } from "../core/processManager";
 import { isDemoMode } from "../core/demo";
 import { resolveWorktree } from "../core/worktree";
 import {
@@ -127,18 +127,61 @@ export const App = () => {
     setMode(processManager.list().length > 0 ? "dashboard" : "app-select");
   };
 
-  const moveFocus = (delta: number) => {
-    const list = processManager.list();
-    if (list.length === 0) {
+  // ↑↓/Tab — 슬롯(포트) 단위 이동. 다음 슬롯의 live 멤버(없으면 첫 멤버)로 focus.
+  const moveSlot = (delta: number) => {
+    const slots = groupSlots(processManager.list());
+    if (slots.length === 0) {
       return;
     }
     const currentIndex = Math.max(
       0,
-      list.findIndex((app) => app.id === focusedId),
+      slots.findIndex((slot) => slot.members.some((member) => member.id === focusedId)),
     );
-    const next = list[(currentIndex + delta + list.length) % list.length];
+    const next = slots[(currentIndex + delta + slots.length) % slots.length];
+    const target = next ? next.live ?? next.members[0] : undefined;
+    if (target) {
+      setFocusedId(target.id);
+    }
+  };
+
+  // ←→ — focused 슬롯 안 브랜치 탭 이동(멀티 브랜치일 때만).
+  const moveBranch = (delta: number) => {
+    const slot = groupSlots(processManager.list()).find((candidate) =>
+      candidate.members.some((member) => member.id === focusedId),
+    );
+    if (!slot || slot.members.length < 2) {
+      return;
+    }
+    const index = Math.max(
+      0,
+      slot.members.findIndex((member) => member.id === focusedId),
+    );
+    const next = slot.members[(index + delta + slot.members.length) % slot.members.length];
     if (next) {
       setFocusedId(next.id);
+    }
+  };
+
+  // 슬롯의 현재 focused 멤버를 찾아 그 슬롯을 돌려준다.
+  const focusedSlot = () => {
+    return groupSlots(processManager.list()).find((slot) =>
+      slot.members.some((member) => member.id === focusedId),
+    );
+  };
+
+  // Enter — focused 브랜치를 같은 포트에 live 로 전환(단일-포트 스왑). 이미 live 면 no-op.
+  const handleSwitchFocused = () => {
+    if (focusedId) {
+      processManager.switchTo(focusedId);
+    }
+  };
+
+  // r — focused 슬롯의 live 멤버를 제자리 재시작(host 프록시 반영 등). live 없으면 focused 를 올린다.
+  const handleRestartFocusedSlot = () => {
+    const slot = focusedSlot();
+    const targetId = slot?.live?.id ?? focusedId;
+    if (targetId) {
+      processManager.restart(targetId);
     }
   };
 
@@ -159,13 +202,11 @@ export const App = () => {
     setFocusedId(neighbor ? neighbor.id : null);
   };
 
+  // o — focused 슬롯의 live(포트 점유) 멤버를 브라우저로 연다.
   const handleOpenBrowserForFocused = () => {
-    if (!focusedId) {
-      return;
-    }
-    const runningApp = processManager.get(focusedId);
-    if (runningApp && runningApp.status === "running" && runningApp.port !== null) {
-      openBrowser(`http://localhost:${runningApp.port}`);
+    const live = focusedSlot()?.live;
+    if (live && live.status === "running" && live.port !== null) {
+      openBrowser(`http://localhost:${live.port}`);
     }
   };
 
@@ -227,11 +268,24 @@ export const App = () => {
 
     // mode === "dashboard"
     if (key.tab || key.downArrow) {
-      moveFocus(1);
+      moveSlot(1);
       return;
     }
     if (key.upArrow) {
-      moveFocus(-1);
+      moveSlot(-1);
+      return;
+    }
+    if (key.rightArrow) {
+      moveBranch(1);
+      return;
+    }
+    if (key.leftArrow) {
+      moveBranch(-1);
+      return;
+    }
+    // Enter — 같은 포트에 focused 브랜치를 live 로 전환(parked → live, 단일-포트 스왑).
+    if (key.return) {
+      handleSwitchFocused();
       return;
     }
     if (input === "a") {
@@ -241,11 +295,11 @@ export const App = () => {
       setMode("app-select");
       return;
     }
-    if (input === "r" && focusedId) {
-      processManager.restart(focusedId);
+    if (input === "r") {
+      handleRestartFocusedSlot();
       return;
     }
-    // x = 끄기: focused 앱(remote/host)을 프로세스 그룹째 종료하고 대시보드에서 제거한다.
+    // x = 끄기: focused 앱/브랜치를 프로세스 그룹째 종료하고 대시보드에서 제거한다.
     // 개별 종료는 x 로 통일 — Ctrl+C 는 CLI 전체 종료에만 쓴다(터미널 관습과 일치).
     if (input === "x") {
       handleRemoveFocused();
