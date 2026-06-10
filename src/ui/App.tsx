@@ -1,9 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout } from "ink";
 import SelectInput from "ink-select-input";
 import TextInput from "ink-text-input";
 import { listApps, type AppInfo } from "../core/apps";
-import { openEditor } from "../core/actions";
+import { openBrowser, openEditor } from "../core/actions";
+import { makeRunId, processManager } from "../core/processManager";
+import { isDemoMode } from "../core/demo";
 import { resolveWorktree } from "../core/worktree";
 import {
   checkFlexRoot,
@@ -13,11 +15,14 @@ import {
   writeFlexRoot,
 } from "../core/config";
 import { FilterSelect, type FilterSelectItem } from "./FilterSelect";
+import { Dashboard } from "./Dashboard";
 
-type Step = "app" | "branch" | "action" | "settings" | "opened" | "error";
+// dashboard: 실행 중 앱 대시보드(메인). app-select→branch→action: 새 앱 추가 흐름.
+// settings: FLEX_ROOT. error: worktree 해석 실패.
+type Mode = "dashboard" | "app-select" | "branch" | "action" | "settings" | "error";
 
-// FLEX_ROOT 가 가리키는 곳에 부모 레포가 아직 없을 수 있다(설정 직후/오설정).
-// 그 경우 throw 대신 빈 목록으로 떨어뜨려, 사용자가 Tab→설정으로 경로를 고칠 수 있게 한다.
+// FLEX_ROOT 가 가리키는 곳에 부모 레포가 아직 없을 수 있다 → throw 대신 빈 목록으로 떨어뜨려
+// 사용자가 Tab→설정으로 경로를 고칠 수 있게 한다.
 const loadApps = (): AppInfo[] => {
   try {
     return listApps();
@@ -26,15 +31,31 @@ const loadApps = (): AppInfo[] => {
   }
 };
 
-interface AppProps {
-  // run 선택 시 호출 — 호출 측이 Ink 를 unmount 하고 dev 서버를 foreground 로 띄운다.
-  onRun: (target: string, app: AppInfo) => void;
-  // 직전에 run 한 앱. 있으면 앱 선택을 건너뛰고 브랜치 입력부터 시작한다(앱 고정 + 브랜치만 교체).
-  initialApp?: AppInfo;
-}
+// processManager 의 update 이벤트를 구독해 ~120ms 간격으로만 re-render 한다.
+// 고빈도 로그가 매 청크마다 render 를 트리거하지 않도록 dirty 플래그(useRef)로 coalesce.
+const useManagerSubscription = (): void => {
+  const [, setTick] = useState(0);
+  const dirtyRef = useRef(false);
+  useEffect(() => {
+    const handleUpdate = () => {
+      dirtyRef.current = true;
+    };
+    processManager.onUpdate(handleUpdate);
+    const interval = setInterval(() => {
+      if (dirtyRef.current) {
+        dirtyRef.current = false;
+        setTick((value) => value + 1);
+      }
+    }, 120);
+    return () => {
+      processManager.offUpdate(handleUpdate);
+      clearInterval(interval);
+    };
+  }, []);
+};
 
-// 상단 제목 + 진행 경로(앱 → 브랜치) 표시.
-const Header = (props: { app: AppInfo | null; branch: string; step: Step }) => {
+// 선택 흐름(app-select/branch/action/settings)에서만 보이는 상단 제목 + 진행 경로.
+const Header = (props: { app: AppInfo | null; branch: string; mode: Mode }) => {
   const crumb = (label: string, value: string, active: boolean) => {
     return (
       <Text>
@@ -51,12 +72,12 @@ const Header = (props: { app: AppInfo | null; branch: string; step: Step }) => {
         <Text color="cyan" bold>
           ⚡ flex-fe-dev
         </Text>
-        <Text dimColor>  flex frontend dev 런처</Text>
+        <Text dimColor>  앱 추가</Text>
       </Text>
       <Box>
-        {crumb("app", props.app?.name ?? "", props.step === "app")}
+        {crumb("app", props.app?.name ?? "", props.mode === "app-select")}
         <Text dimColor>{"   ›   "}</Text>
-        {crumb("branch", props.branch, props.step === "branch")}
+        {crumb("branch", props.branch, props.mode === "branch")}
       </Box>
     </Box>
   );
@@ -70,66 +91,168 @@ const FooterHint = (props: { children: string }) => {
   );
 };
 
-export const App = (props: AppProps) => {
+export const App = () => {
   const { exit } = useApp();
   const { stdout } = useStdout();
-  // 설정에서 FLEX_ROOT 를 바꾸면 다시 스캔해야 하므로 useMemo 가 아닌 state 로 들고 있는다.
-  const [apps, setApps] = useState<AppInfo[]>(loadApps);
+  useManagerSubscription();
 
-  // 출력 전체가 터미널 높이를 넘으면 Ink 가 이전 프레임을 못 지워 잔상이 쌓인다.
-  // 리스트 줄 수를 터미널 행 수에 맞춰 제한해 항상 한 화면에 들어오게 한다.
-  // (chrome: 헤더3 + 제목1 + 검색1 + 여백1 + 카운트1 + 힌트2 ≈ 9, 안전여백 포함 12)
   const terminalRows = stdout?.rows ?? 24;
   const listLimit = Math.max(5, terminalRows - 12);
 
-  // initialApp 이 있으면 그 앱으로 고정한 채 브랜치 단계부터 시작. 앱을 바꾸려면 브랜치에서 Esc.
-  const [step, setStep] = useState<Step>(props.initialApp ? "branch" : "app");
-  const [selectedApp, setSelectedApp] = useState<AppInfo | null>(props.initialApp ?? null);
+  // FLEX_ROOT 를 바꾸면 재스캔해야 하므로 state 로 들고 있는다.
+  const [apps, setApps] = useState<AppInfo[]>(loadApps);
+  // 0개면 추가 흐름부터, 아니면 대시보드. (재시작 사이 싱글톤이 살아 있을 수 있어 list 로 판단)
+  const [mode, setMode] = useState<Mode>(() =>
+    processManager.list().length > 0 ? "dashboard" : "app-select",
+  );
+  const [selectedApp, setSelectedApp] = useState<AppInfo | null>(null);
   const [branch, setBranch] = useState("");
   const [branchDraft, setBranchDraft] = useState("");
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  // run 시 VS Code 도 함께 열지 여부. action 단계에서 Space 로 토글, 기본 켜짐.
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  // run 시 VS Code 도 함께 열지. action 단계에서 Space 토글, 기본 켜짐.
   const [openEditorOnRun, setOpenEditorOnRun] = useState(true);
-  // settings 단계의 FLEX_ROOT 입력 초안. 진입 시 저장값(없으면 현재 적용값)으로 프리필한다.
   const [settingsDraft, setSettingsDraft] = useState("");
 
-  const resetToStart = () => {
-    setSelectedApp(null);
-    setBranch("");
-    setBranchDraft("");
-    setMessage("");
-    setError("");
-    setStep("app");
+  // tick 으로 매 render 새로 읽는 실행 목록.
+  const runningApps = processManager.list();
+  const hostNeedsRestart = processManager.hostNeedsRestart();
+
+  const enterSettings = () => {
+    setSettingsDraft(readSavedFlexRoot() ?? getFlexRoot());
+    setMode("settings");
   };
 
-  // Esc: 한 단계 뒤로 (app 단계에선 종료). 종료는 Esc(app) 또는 Ctrl+C.
-  // app 단계는 검색 타이핑을 받으므로 q 같은 문자 단축키를 두지 않는다 — 설정 진입은 Tab.
-  // action 단계에선 Space 로 'VS Code 열기' 체크박스를 토글한다.
-  useInput((input, key) => {
-    // 앱 화면은 타이핑이 곧 검색이라 문자 키를 못 쓴다. Tab 으로 설정에 진입한다.
-    // (FilterSelect 는 Tab 을 무시하고, 설정 단계에선 언마운트되어 충돌이 없다)
-    if (key.tab && step === "app") {
-      setSettingsDraft(readSavedFlexRoot() ?? getFlexRoot());
-      setStep("settings");
+  const backToBase = () => {
+    setMode(processManager.list().length > 0 ? "dashboard" : "app-select");
+  };
+
+  const moveFocus = (delta: number) => {
+    const list = processManager.list();
+    if (list.length === 0) {
       return;
     }
-    if (key.escape) {
-      if (step === "app") {
-        exit();
-      } else if (step === "branch") {
-        setStep("app");
-      } else if (step === "action") {
-        setStep("branch");
-      } else if (step === "settings") {
-        setStep("app");
-      } else if (step === "error" || step === "opened") {
-        resetToStart();
+    const currentIndex = Math.max(
+      0,
+      list.findIndex((app) => app.id === focusedId),
+    );
+    const next = list[(currentIndex + delta + list.length) % list.length];
+    if (next) {
+      setFocusedId(next.id);
+    }
+  };
+
+  const handleRemoveFocused = () => {
+    if (!focusedId) {
+      return;
+    }
+    const before = processManager.list();
+    const removedIndex = before.findIndex((app) => app.id === focusedId);
+    processManager.remove(focusedId);
+    const after = processManager.list();
+    if (after.length === 0) {
+      setFocusedId(null);
+      setMode("app-select");
+      return;
+    }
+    const neighbor = after[Math.min(removedIndex, after.length - 1)];
+    setFocusedId(neighbor ? neighbor.id : null);
+  };
+
+  const handleOpenBrowserForFocused = () => {
+    if (!focusedId) {
+      return;
+    }
+    const runningApp = processManager.get(focusedId);
+    if (runningApp && runningApp.status === "running" && runningApp.port !== null) {
+      openBrowser(`http://localhost:${runningApp.port}`);
+    }
+  };
+
+  useInput((input, key) => {
+    // 어느 모드든 Ctrl+C 는 모든 dev 서버를 정리하고 종료한다.
+    if (key.ctrl && input === "c") {
+      processManager.stopAll();
+      exit();
+      return;
+    }
+
+    if (mode === "app-select") {
+      if (key.tab) {
+        enterSettings();
+        return;
+      }
+      if (key.escape) {
+        if (processManager.list().length > 0) {
+          setMode("dashboard");
+        } else {
+          processManager.stopAll();
+          exit();
+        }
+      }
+      return; // 글자 입력은 FilterSelect 의 검색으로 전달.
+    }
+
+    if (mode === "branch") {
+      if (key.escape) {
+        setMode("app-select");
+      }
+      return; // 타이핑은 TextInput.
+    }
+
+    if (mode === "action") {
+      if (key.escape) {
+        setMode("branch");
+        return;
+      }
+      if (input === " ") {
+        setOpenEditorOnRun((prev) => !prev);
+      }
+      return; // 화살표/Enter 는 SelectInput.
+    }
+
+    if (mode === "settings") {
+      if (key.escape) {
+        backToBase();
+      }
+      return; // 타이핑은 TextInput.
+    }
+
+    if (mode === "error") {
+      if (key.escape || key.return) {
+        backToBase();
       }
       return;
     }
-    if (step === "action" && input === " ") {
-      setOpenEditorOnRun((prev) => !prev);
+
+    // mode === "dashboard"
+    if (key.tab || key.downArrow) {
+      moveFocus(1);
+      return;
+    }
+    if (key.upArrow) {
+      moveFocus(-1);
+      return;
+    }
+    if (input === "a") {
+      setSelectedApp(null);
+      setBranch("");
+      setBranchDraft("");
+      setMode("app-select");
+      return;
+    }
+    if (input === "r" && focusedId) {
+      processManager.restart(focusedId);
+      return;
+    }
+    // x = 끄기: focused 앱(remote/host)을 프로세스 그룹째 종료하고 대시보드에서 제거한다.
+    // 개별 종료는 x 로 통일 — Ctrl+C 는 CLI 전체 종료에만 쓴다(터미널 관습과 일치).
+    if (input === "x") {
+      handleRemoveFocused();
+      return;
+    }
+    if (input === "o") {
+      handleOpenBrowserForFocused();
     }
   });
 
@@ -145,7 +268,7 @@ export const App = (props: AppProps) => {
 
   const handleAppSelect = (item: FilterSelectItem<AppInfo>) => {
     setSelectedApp(item.value);
-    setStep("branch");
+    setMode("branch");
   };
 
   const handleBranchSubmit = (value: string) => {
@@ -154,11 +277,11 @@ export const App = (props: AppProps) => {
       return;
     }
     setBranch(trimmed);
-    setStep("action");
+    setMode("action");
   };
 
   const actionItems = [
-    { label: "▶  run   — dev 서버 실행 (Ctrl+C 로 끄면 브랜치 단계로 복귀, 앱 유지)", value: "run", key: "run" },
+    { label: "▶  run   — dev 서버를 대시보드에 추가 (백그라운드 실행)", value: "run", key: "run" },
     { label: "↗  open  — VS Code 로만 열기 (dev 없이)", value: "open", key: "open" },
   ];
 
@@ -167,47 +290,59 @@ export const App = (props: AppProps) => {
       return;
     }
     try {
-      const resolution = resolveWorktree(selectedApp, branch);
+      // 데모 모드는 git worktree 해석/생성을 건너뛰고 submodule 경로만 쓴다(부작용 0).
+      const target = isDemoMode()
+        ? selectedApp.submodule
+        : resolveWorktree(selectedApp, branch).target;
       if (item.value === "run") {
-        // 체크박스가 켜져 있으면 VS Code 를 먼저 열고(분리 실행 — 터미널 점유 안 함),
-        // 그다음 Ink 를 벗어나 dev 서버에 터미널을 넘긴다. 에디터는 install/dev 동안 떠 있다.
-        if (openEditorOnRun) {
-          openEditor(resolution.target);
+        if (openEditorOnRun && !isDemoMode()) {
+          openEditor(target);
         }
-        props.onRun(resolution.target, selectedApp);
+        setFocusedId(makeRunId(selectedApp.workspace, branch));
+        void processManager.start({ app: selectedApp, target, branch });
+        setMode("dashboard");
         return;
       }
-      openEditor(resolution.target);
-      setMessage(`✓ VS Code 로 열림: ${resolution.target}`);
-      setStep("opened");
+      if (!isDemoMode()) {
+        openEditor(target);
+      }
+      backToBase();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
-      setStep("error");
+      setMode("error");
     }
   };
 
   const handleSettingsSubmit = (value: string) => {
     const trimmed = value.trim();
-    // 빈 입력은 변경 취소로 보고 그대로 앱 선택으로 돌아간다.
     if (!trimmed) {
-      setStep("app");
+      backToBase();
       return;
     }
     writeFlexRoot(trimmed);
-    // 새 경로로 즉시 재스캔. 목록이 바뀌었으니 직전 선택은 비운다.
     setApps(loadApps());
     setSelectedApp(null);
-    setStep("app");
+    setMode("app-select");
   };
 
-  // 설정 단계에서만 입력값을 라이브 검증한다(다른 단계에선 불필요한 fs 접근 방지).
-  const settingsCheck = step === "settings" ? checkFlexRoot(settingsDraft) : null;
+  const settingsCheck = mode === "settings" ? checkFlexRoot(settingsDraft) : null;
+
+  if (mode === "dashboard") {
+    return (
+      <Dashboard
+        apps={runningApps}
+        focusedId={focusedId}
+        rows={terminalRows}
+        hostNeedsRestart={hostNeedsRestart}
+      />
+    );
+  }
 
   return (
     <Box flexDirection="column">
-      <Header app={selectedApp} branch={branch} step={step} />
+      <Header app={selectedApp} branch={branch} mode={mode} />
 
-      {step === "app" ? (
+      {mode === "app-select" ? (
         <Box flexDirection="column">
           <Text bold>어떤 앱을 띄울까요?</Text>
           <FilterSelect
@@ -216,11 +351,15 @@ export const App = (props: AppProps) => {
             placeholder="앱·레포 이름으로 검색 (예: brain, payroll, host)"
             onSelect={handleAppSelect}
           />
-          <FooterHint>타이핑 검색 · ↑↓ 이동 · Enter 선택 · Tab 설정 · Esc 종료</FooterHint>
+          <FooterHint>
+            {runningApps.length > 0
+              ? "타이핑 검색 · ↑↓ 이동 · Enter 선택 · Tab 설정 · Esc 대시보드"
+              : "타이핑 검색 · ↑↓ 이동 · Enter 선택 · Tab 설정 · Esc 종료"}
+          </FooterHint>
         </Box>
       ) : null}
 
-      {step === "branch" ? (
+      {mode === "branch" ? (
         <Box flexDirection="column">
           <Text bold>브랜치 이름</Text>
           <Box marginTop={1}>
@@ -236,7 +375,7 @@ export const App = (props: AppProps) => {
         </Box>
       ) : null}
 
-      {step === "action" ? (
+      {mode === "action" ? (
         <Box flexDirection="column">
           <Text bold>무엇을 할까요?</Text>
           <Box marginTop={1} flexDirection="column">
@@ -251,7 +390,7 @@ export const App = (props: AppProps) => {
         </Box>
       ) : null}
 
-      {step === "settings" ? (
+      {mode === "settings" ? (
         <Box flexDirection="column">
           <Text bold>설정 — FLEX_ROOT</Text>
           <Box marginTop={1}>
@@ -293,29 +432,10 @@ export const App = (props: AppProps) => {
         </Box>
       ) : null}
 
-      {step === "opened" ? (
-        <Box flexDirection="column">
-          <Text color="green">{message}</Text>
-          <Box marginTop={1} flexDirection="column">
-            <SelectInput
-              items={[{ label: "↺  처음으로", value: "back", key: "back" }]}
-              onSelect={resetToStart}
-            />
-          </Box>
-          <FooterHint>Enter/Esc 로 처음으로 · Ctrl+C 종료</FooterHint>
-        </Box>
-      ) : null}
-
-      {step === "error" ? (
+      {mode === "error" ? (
         <Box flexDirection="column">
           <Text color="red">✖ {error}</Text>
-          <Box marginTop={1} flexDirection="column">
-            <SelectInput
-              items={[{ label: "↺  처음으로", value: "back", key: "back" }]}
-              onSelect={resetToStart}
-            />
-          </Box>
-          <FooterHint>Enter/Esc 로 처음으로 · Ctrl+C 종료</FooterHint>
+          <FooterHint>Enter/Esc 로 돌아가기 · Ctrl+C 종료</FooterHint>
         </Box>
       ) : null}
     </Box>

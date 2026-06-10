@@ -2,7 +2,7 @@
 
 > **[`flex-frontend-repositories`](https://github.com/flex-team/flex-frontend-repositories) 기반** — 부모 레포 아래 `flex-frontend*` submodule 들이 묶여 있고 각 submodule 에 `web-applications/{remotes-*, host}` 가 있는 모노레포 구조를 전제로 동작한다. 이 레이아웃이 아니면 앱 스캔이 비어 나온다.
 
-flex frontend dev 런처. 작업할 **앱과 브랜치를 고르면** worktree 를 해석/생성하고, dev 서버를 띄우거나(`run`) VS Code 로 연다(`open`).
+flex frontend dev 런처. 작업할 **앱과 브랜치를 고르면** worktree 를 해석/생성하고, dev 서버를 **CLI 내부 대시보드에서 백그라운드로 여러 개 동시에** 띄운다 — host·brain·gnb 를 터미널 탭 3개 대신 한 창에서. VS Code 로만 열 수도 있다(`open`).
 
 flex 프론트 레포는 부모 레포(`flex-frontend-repositories`) 아래 submodule 들로 묶여 있고, 작업은 각 submodule 의 worktree 에 격리한다. 이 도구는 그 흐름(앱 → 브랜치 → worktree → run/open)을 한 곳에서 처리한다.
 
@@ -28,30 +28,38 @@ npm install
 flex-fe-dev
 ```
 
-계속 떠 있는 대화형 런처. **앱 선택 → 브랜치 입력 → run/open** 순서로 진행한다.
+계속 떠 있는 대화형 런처. **대시보드**가 메인 화면이고, 여기에 앱을 하나씩 추가해 여러 dev 서버를 동시에 돌린다.
 
-### 1. 앱 선택
+### 1. 앱 추가 — 앱 선택 → 브랜치 → run
 
-부모 레포 안 모든 submodule 의 `web-applications/{remotes-*, host}` 를 스캔해 **레포(submodule) 단위로 그룹핑**해 보여준다. 타이핑하면 **앱·레포 이름으로 즉시 필터링**된다. `host` 는 MF host 앱(`@flex-apps/host`)으로 다룬다.
+대시보드에서 `a` 를 누르면 추가 흐름이 뜬다. 부모 레포 안 모든 submodule 의 `web-applications/{remotes-*, host}` 를 스캔해 **레포(submodule) 단위로 그룹핑**해 보여주고, 타이핑하면 **앱·레포 이름으로 즉시 필터링**된다. `host` 는 MF host 앱(`@flex-apps/host`)으로 다룬다.
 
 ![앱 선택](assets/app-select.png)
 
-검색 — `payroll` 입력 시 그 레포의 앱들만:
+타이핑하면 즉시 필터링된다:
 
 ![검색](assets/search.png)
 
-### 2. 브랜치 입력 → 3. run/open
+앱을 고르고 브랜치를 입력하면 worktree 를 해석한다. **default branch 면 submodule 본체**를 그대로 쓰고, 그 외엔 체크아웃된 worktree 를 찾거나(없으면 origin 에서 자동 생성). 이어서 **run**(대시보드에 추가) 또는 **open**(VS Code 만)을 고른다. run 시 `Space` 로 'VS Code 도 함께 열기'를 토글할 수 있다(기본 켜짐).
 
-브랜치를 입력하면 worktree 를 해석한다. **default branch 면 submodule 본체**를 그대로 쓰고, 그 외엔 체크아웃된 worktree 를 찾거나(없으면 origin 에서 자동 생성). 이어서 무엇을 할지 고른다.
+### 2. 대시보드 — 분할 로그 + 멀티 supervise
 
-![액션](assets/action.png)
+`run` 하면 메뉴가 사라지지 않고 대시보드에 **패널이 추가**되며 그 앱이 백그라운드로 부팅된다(`yarn install` → `.env.local` 보장 → `yarn turbo run dev --filter <workspace>`). 여러 앱을 쌓으면 각 dev 서버 로그가 **분할 패널로 동시에** 흐르고, **focused 앱**(`↑↓`/`Tab` 로 이동)이 더 큰 행 비중을 차지한다. 상태는 색으로 구분된다 — `● running`(초록) / `◐ installing`(노랑) / `○ exited`(회색) / `✖ failed`(빨강).
 
-- **run**: 기본적으로 **VS Code 로 해당 디렉토리를 먼저 열고**(분리 실행) — `Space` 로 이 옵션을 토글할 수 있다(기본 켜짐) — 이어서 `yarn install` → `.env.local` 보장 → `yarn turbo run dev --filter <workspace>` 를 foreground 로 실행. dev 를 `Ctrl+C` 로 끄면 프로그램이 종료되지 않고 **같은 앱의 브랜치 입력 단계로 복귀**한다 → 앱을 다시 고를 필요 없이 다른 브랜치를 바로 띄울 수 있다. **앱을 바꾸려면 브랜치 단계에서 `Esc`** 로 앱 선택으로 돌아간다.
-- **open**: dev 없이 VS Code 로만 해당 디렉토리를 연다 (TUI 는 그대로 유지).
+![대시보드](assets/dashboard.png)
 
-remote 를 run 하면 host(:3000) 의 `.env.local` 에서 그 remote 의 `MF_REMOTES_<NAME>_BASE_URL=http://localhost:<port>` 를 자동으로 활성화(주석 해제/없으면 추가)하고, dev 를 끄면 다시 주석 처리한다. `name`/`port` 는 각 remote 의 `mf.config.ts` 에서 읽는다. (host dev 서버가 이미 떠 있으면 변경 반영에 host 재시작이 필요할 수 있다.)
+focused 앱에 대한 키:
 
-단축키: 앱 선택에서 **타이핑 검색** · `↑↓` 이동 · `Enter` 선택 · `Tab` 설정(FLEX_ROOT) · `Space` (액션 단계에서 VS Code 열기 토글) · `Esc` 뒤로(앱 단계에선 종료) · `Ctrl+C` 종료.
+- `x` — **끄기**: 그 앱(remote/host)을 프로세스 그룹째 종료하고 대시보드에서 제거한다. 개별 종료는 `x` 로 통일 — 터미널 기본 `Ctrl+C` 와 겹치지 않게 한다.
+- `r` — 재시작 (in-place — host 가 새 remote 프록시를 반영해야 할 때 사용)
+- `o` — 브라우저로 `localhost:<port>` 열기
+- `a` — 새 앱 추가
+
+`Ctrl+C` 는 **flex-fe-dev-cli 자체를 종료**한다. 이때 떠 있는 모든 dev 서버를 정리한다 — SIGTERM(graceful) → 다 죽을 때까지 대기(최대 2초) → 안 죽으면 SIGKILL → 종료. **고아 프로세스/포트 점유가 남지 않는다.**
+
+remote 를 run 하면 host(:3000) 의 `.env.local` 에서 그 remote 의 `MF_REMOTES_<NAME>_BASE_URL=http://localhost:<port>` 를 자동으로 활성화(주석 해제/없으면 추가)하고, `x` 로 끄면 다시 주석 처리한다. `name`/`port` 는 각 remote 의 `mf.config.ts` 에서 읽는다. **host 는 이 값을 부팅 시점에 읽으므로**, host 가 이미 떠 있는데 새 remote 를 추가하면 대시보드에 "host 재시작 필요" 힌트가 뜬다 → host 패널 focus 후 `r` 로 반영한다.
+
+단축키: 추가 흐름에서 **타이핑 검색** · `↑↓` 이동 · `Enter` 선택 · `Tab` 설정(FLEX_ROOT) · `Space`(run 단계에서 VS Code 열기 토글) · `Esc` 뒤로(추가 흐름→대시보드). 대시보드에서 `a`/`r`/`x`/`o` · `↑↓`/`Tab` focus · `Ctrl+C` 종료(전체).
 
 ## 동작 규칙
 
@@ -73,18 +81,25 @@ remote 를 run 하면 host(:3000) 의 `.env.local` 에서 그 remote 의 `MF_REM
 | `FLEX_ROOT` | config 파일 → `$HOME/Projects/flex` | flex 레포들의 루트 |
 | `FLEX_PARENT_REPO` | `$FLEX_ROOT/flex-frontend-repositories` | submodule 들이 묶인 부모 레포 |
 | `XDG_CONFIG_HOME` | `$HOME/.config` | config 파일 위치의 베이스 |
+| `FLEX_FE_DEV_DEMO` | (없음) | `1` 이면 **데모 모드** — 실제 yarn/dev/git 없이 가짜 앱이 합성 로그를 스트리밍한다(UI 미리보기·GIF 캡처용) |
 
 ## 구조
 
 ```
-bin/flex-fe-dev      TUI 진입점 (node_modules/.bin/tsx src/cli.tsx — 빌드 없음)
-src/cli.tsx          render + 메뉴↔dev 루프 (dev 종료 시 메뉴 복귀)
-src/ui/App.tsx       앱 → 브랜치 → run/open 상태 머신
+bin/flex-fe-dev          TUI 진입점 (node_modules/.bin/tsx src/cli.tsx — 빌드 없음)
+src/cli.tsx              render 1회 mount + 종료 시 stopAll(자식 정리)
+src/ui/App.tsx           mode 머신 (dashboard ⇄ app-select → branch → action ⇄ settings) + 입력 단독 처리
+src/ui/Dashboard.tsx     실행 중 앱 분할 로그 패널 (focused 가중 분배 · 상태 색)
 src/ui/FilterSelect.tsx  타이핑 검색 + 레포 그룹핑 + 스크롤 리스트
-src/core/apps.ts     submodule 스캔 → AppInfo 목록 (레포 그룹/host 처리)
-src/core/worktree.ts worktree 해석/자동 생성
-src/core/actions.ts  run(dev) / open(code) / .env.local 보장
-assets/demo.tape     스크린샷·GIF 캡처용 vhs tape
+src/core/processManager.ts  멀티-앱 supervisor (detached 프로세스 그룹 · install dedupe · host env 토글)
+src/core/logBuffer.ts    앱별 라인 링버퍼 (\r collapse · ANSI strip · tail)
+src/core/mfConfig.ts     mf.config.ts 에서 name/port 파싱 (hostEnv·대시보드 공용)
+src/core/demo.ts         데모 모드(FLEX_FE_DEV_DEMO) — 가짜 앱 합성 로그
+src/core/apps.ts         submodule 스캔 → AppInfo 목록 (레포 그룹/host 처리)
+src/core/worktree.ts     worktree 해석/자동 생성
+src/core/actions.ts      .env.local 보장 / VS Code · 브라우저 열기
+src/core/hostEnv.ts      host .env.local 의 remote 프록시 라인 토글
+assets/demo.tape         스크린샷·GIF 캡처용 vhs tape
 ```
 
 ## 스크린샷 재생성

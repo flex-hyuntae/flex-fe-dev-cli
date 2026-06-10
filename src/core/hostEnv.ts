@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { listApps, type AppInfo } from "./apps";
+import { readMfConfig } from "./mfConfig";
 
 // host(:3000) 와 함께 띄울 때 remote 를 프록시하려면 host .env.local 에
 //   MF_REMOTES_<NAME>_BASE_URL=http://localhost:<port>
-// 가 활성화돼 있어야 한다. name/port 는 remote 의 mf.config.ts 가 단일 출처.
+// 가 활성화돼 있어야 한다. name/port 는 remote 의 mf.config.ts 가 단일 출처(readMfConfig).
 // (키 규칙 출처: @flex-packages/podo RemoteBaseUrls — MF_REMOTES_<X>_BASE_URL,
 //  X = name 의 '-'→'_' 대문자화. 예: time-tracking → MF_REMOTES_TIME_TRACKING_BASE_URL)
 
@@ -16,32 +17,14 @@ interface RemoteProxy {
   name: string; // mf.config 의 name
 }
 
-// mf.config.ts 는 TS 모듈이라 require 할 수 없다 — name/port 만 정규식으로 뽑는다.
-// noUncheckedIndexedAccess 가 켜져 있어 캡처 그룹은 string | undefined 다(단언 없이 가드).
+// mf.config 의 name/port 를 host 프록시 키/URL 로 환산한다. 못 읽으면 null.
 const readRemoteProxy = (remoteTarget: string, app: AppInfo): RemoteProxy | null => {
-  const mfConfigPath = path.join(
-    remoteTarget,
-    "web-applications",
-    app.appSubdir,
-    "mf.config.ts",
-  );
-  let source: string;
-  try {
-    source = fs.readFileSync(mfConfigPath, "utf8");
-  } catch {
+  const config = readMfConfig(remoteTarget, app);
+  if (!config) {
     return null;
   }
-
-  // 줄 단위(name: 'x',)든 인라인({ name: 'x', port: 3009 })이든 잡되 'APP_NAME'·export·import 같은
-  // 단어 일부와는 겹치지 않게 \b 경계로 묶는다. name 은 따옴표 값까지 요구해 오매칭을 더 줄인다.
-  const name = source.match(/\bname:\s*'([^']+)'/)?.[1];
-  const port = source.match(/\bport:\s*(\d+)/)?.[1];
-  if (name === undefined || port === undefined) {
-    return null;
-  }
-
-  const envKey = `MF_REMOTES_${name.replaceAll("-", "_").toUpperCase()}_BASE_URL`;
-  return { envKey, url: `http://localhost:${port}`, name };
+  const envKey = `MF_REMOTES_${config.name.replaceAll("-", "_").toUpperCase()}_BASE_URL`;
+  return { envKey, url: `http://localhost:${config.port}`, name: config.name };
 };
 
 // flexHost(:3000) 의 .env.local 경로. host 앱이 없거나 .env.local 이 없으면 null.
