@@ -73,7 +73,7 @@ ai 를 두 브랜치로 띄우고 `←→`·`Enter` 로 `:3022` 를 갈아끼우
 
 remote 를 run 하면 host(:3000) 의 `.env.local` 에서 그 remote 의 `MF_REMOTES_<NAME>_BASE_URL=http://localhost:<port>` 를 자동으로 활성화(주석 해제/없으면 추가)하고, `x` 로 끄면 다시 주석 처리한다. `name`/`port` 는 각 remote 의 `mf.config.ts` 에서 읽는다. **host 는 이 값을 부팅 시점에 읽으므로**, host 가 이미 떠 있는데 새 remote 를 추가하면 대시보드에 "host 재시작 필요" 힌트가 뜬다 → host 패널 focus 후 `r` 로 반영한다.
 
-단축키: 추가 흐름에서 **타이핑 검색** · `↑↓` 이동 · `Enter` 선택 · `Tab` 설정(FLEX_ROOT) · `Space`(run 단계에서 VS Code 열기 토글) · `Esc` 뒤로(추가 흐름→대시보드). 대시보드에서 `a`/`r`/`x`/`o` · `↑↓`/`Tab` focus · `Ctrl+C` 종료(전체).
+단축키: 추가 흐름에서 **타이핑 검색** · `↑↓` 이동 · `Enter` 선택 · `Tab` 설정(FLEX_ROOT) · `Space`(run 단계에서 VS Code 열기 토글) · `Esc` 뒤로(추가 흐름→대시보드). 대시보드에서 `a` 추가 · `↑↓`/`Tab` 슬롯 · `←→` 브랜치 · `Enter` 전환 · `r` 재시작 · `x` 끄기 · `o` 브라우저 · `Ctrl+C` 종료(전체).
 
 ## 동작 규칙
 
