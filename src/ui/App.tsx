@@ -202,7 +202,21 @@ export const App = () => {
     setFocusedId(neighbor ? neighbor.id : null);
   };
 
-  // o — focused 슬롯의 live(포트 점유) 멤버를 브라우저로 연다.
+  // o — focused 슬롯에서 실제로 돌고 있는(포트 점유) 브랜치의 worktree 를 VS Code 로 연다.
+  // 같은 remote 에 여러 브랜치를 띄웠을 때 커서가 parked 쪽에 있어도 running 인 브랜치를 연다.
+  // live 가 없으면(전부 parked/exited) 커서가 가리키는 브랜치로 폴백.
+  const handleOpenEditorForFocused = () => {
+    const slot = focusedSlot();
+    if (!slot) {
+      return;
+    }
+    const member = slot.live ?? slot.members.find((candidate) => candidate.id === focusedId);
+    if (member) {
+      openEditor(member.target);
+    }
+  };
+
+  // b — focused 슬롯의 live(포트 점유) 멤버를 브라우저로 연다.
   const handleOpenBrowserForFocused = () => {
     const live = focusedSlot()?.live;
     if (live && live.status === "running" && live.port !== null) {
@@ -306,6 +320,10 @@ export const App = () => {
       return;
     }
     if (input === "o") {
+      handleOpenEditorForFocused();
+      return;
+    }
+    if (input === "b") {
       handleOpenBrowserForFocused();
     }
   });

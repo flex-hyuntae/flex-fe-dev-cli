@@ -217,7 +217,7 @@ export const Dashboard = (props: DashboardProps) => {
       </Box>
       <Box marginTop={1}>
         <Text dimColor>
-          a 추가 · ↑↓ 슬롯 · ←→ 브랜치 · Enter 전환 · r 재시작 · x 끄기 · o 브라우저 · ^C 종료
+          a 추가 · ↑↓ 슬롯 · ←→ 브랜치 · Enter 전환 · r 재시작 · x 끄기 · o 코드 · b 브라우저 · ^C 종료
         </Text>
       </Box>
     </Box>

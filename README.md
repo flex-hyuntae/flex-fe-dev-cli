@@ -58,7 +58,8 @@ focused 슬롯에 대한 키:
 
 - `x` — **끄기**: 그 앱/브랜치를 프로세스 그룹째 종료하고 대시보드에서 제거한다. 개별 종료는 `x` 로 통일 — 터미널 기본 `Ctrl+C` 와 겹치지 않게 한다.
 - `r` — 재시작 (in-place — host 가 새 remote 프록시를 반영해야 할 때 사용)
-- `o` — 브라우저로 `localhost:<port>` 열기
+- `o` — focused 슬롯에서 **running 인 브랜치의 worktree 를 VS Code 로 열기** (같은 remote 에 여러 브랜치를 띄웠을 때 커서가 parked 쪽에 있어도 돌고 있는 브랜치를 연다 · live 없으면 커서 브랜치)
+- `b` — 브라우저로 `localhost:<port>` 열기
 - `a` — 새 앱 추가 · `←→` — 같은 remote 의 브랜치 탭 이동 · `Enter` — 선택 브랜치로 전환
 
 `Ctrl+C` 는 **flex-fe-dev-cli 자체를 종료**한다. 이때 떠 있는 모든 dev 서버를 정리한다 — SIGTERM(graceful) → 다 죽을 때까지 대기(최대 2초) → 안 죽으면 SIGKILL → 종료. **고아 프로세스/포트 점유가 남지 않는다.**
@@ -73,7 +74,7 @@ ai 를 두 브랜치로 띄우고 `←→`·`Enter` 로 `:3022` 를 갈아끼우
 
 remote 를 run 하면 host(:3000) 의 `.env.local` 에서 그 remote 의 `MF_REMOTES_<NAME>_BASE_URL=http://localhost:<port>` 를 자동으로 활성화(주석 해제/없으면 추가)하고, `x` 로 끄면 다시 주석 처리한다. `name`/`port` 는 각 remote 의 `mf.config.ts` 에서 읽는다. **host 는 이 값을 부팅 시점에 읽으므로**, host 가 이미 떠 있는데 새 remote 를 추가하면 대시보드에 "host 재시작 필요" 힌트가 뜬다 → host 패널 focus 후 `r` 로 반영한다.
 
-단축키: 추가 흐름에서 **타이핑 검색** · `↑↓` 이동 · `Enter` 선택 · `Tab` 설정(FLEX_ROOT) · `Space`(run 단계에서 VS Code 열기 토글) · `Esc` 뒤로(추가 흐름→대시보드). 대시보드에서 `a` 추가 · `↑↓`/`Tab` 슬롯 · `←→` 브랜치 · `Enter` 전환 · `r` 재시작 · `x` 끄기 · `o` 브라우저 · `Ctrl+C` 종료(전체).
+단축키: 추가 흐름에서 **타이핑 검색** · `↑↓` 이동 · `Enter` 선택 · `Tab` 설정(FLEX_ROOT) · `Space`(run 단계에서 VS Code 열기 토글) · `Esc` 뒤로(추가 흐름→대시보드). 대시보드에서 `a` 추가 · `↑↓`/`Tab` 슬롯 · `←→` 브랜치 · `Enter` 전환 · `r` 재시작 · `x` 끄기 · `o` 코드 · `b` 브라우저 · `Ctrl+C` 종료(전체).
 
 ## 동작 규칙
 
